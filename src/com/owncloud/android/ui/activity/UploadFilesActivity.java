@@ -67,6 +67,7 @@ public class UploadFilesActivity extends FileActivity implements
     private Button mUploadBtn;
     private Account mAccountOnCreation;
     private DialogFragment mCurrentDialog;
+    private SharedPreferences appPreferencesEditor;
     
     public static final String EXTRA_CHOSEN_FILES =
             UploadFilesActivity.class.getCanonicalName() + ".EXTRA_CHOSEN_FILES";
@@ -78,6 +79,8 @@ public class UploadFilesActivity extends FileActivity implements
     private static final String TAG = "UploadFilesActivity";
     private static final String WAIT_DIALOG_TAG = "WAIT";
     private static final String QUERY_TO_MOVE_DIALOG_TAG = "QUERY_TO_MOVE";
+    private static final String PREFS_UPLOAD_BEHAVIOUR = "prefs_upload_behaviour";
+    private static final String PREFS_LAST_SELECTED_DIR = "prefs_last_selected_dir";
     private RadioButton mRadioBtnCopyFiles;
     private RadioButton mRadioBtnMoveFiles;
 
@@ -87,11 +90,14 @@ public class UploadFilesActivity extends FileActivity implements
         Log_OC.d(TAG, "onCreate() start");
         super.onCreate(savedInstanceState);
 
+        appPreferencesEditor = PreferenceManager
+                .getDefaultSharedPreferences(getApplicationContext());
+
         if(savedInstanceState != null) {
             mCurrentDir = new File(savedInstanceState.getString(
                     UploadFilesActivity.KEY_DIRECTORY_PATH));
         } else {
-            mCurrentDir = Environment.getExternalStorageDirectory();
+            mCurrentDir = getLastSelectedDir();
         }
         
         mAccountOnCreation = getAccount();
@@ -154,6 +160,21 @@ public class UploadFilesActivity extends FileActivity implements
         Log_OC.d(TAG, "onCreate() end");
     }
 
+    private File getLastSelectedDir() {
+        final String dirPath = appPreferencesEditor.getString(PREFS_LAST_SELECTED_DIR, null);
+
+        File lastSelectedDir;
+        if(dirPath != null) {
+            lastSelectedDir = new File(dirPath);
+            if(!lastSelectedDir.exists())
+                lastSelectedDir = Environment.getExternalStorageDirectory();
+        } else {
+            lastSelectedDir = Environment.getExternalStorageDirectory();
+        }
+
+        return lastSelectedDir;
+    }
+
     /**
      * Helper to launch the UploadFilesActivity for which you would like a result when it finished.
      * Your onActivityResult() method will be called with the given requestCode.
@@ -206,6 +227,7 @@ public class UploadFilesActivity extends FileActivity implements
             finish();
             return;
         }
+        mFileListFragment.setCurrentDirectory(mCurrentDir);
         popDirname();
         mFileListFragment.onNavigateUp();
         mCurrentDir = mFileListFragment.getCurrentDirectory();
@@ -283,6 +305,7 @@ public class UploadFilesActivity extends FileActivity implements
      */
     @Override
     public void onDirectoryClick(File directory) {
+        mCurrentDir = directory;
         pushDirname(directory);
         ActionBar actionBar = getSupportActionBar();
         actionBar.setDisplayHomeAsUpEnabled(true);
@@ -376,22 +399,23 @@ public class UploadFilesActivity extends FileActivity implements
             if (result) {
                 // return the list of selected files (success)
                 Intent data = new Intent();
-                data.putExtra(EXTRA_CHOSEN_FILES, mFileListFragment.getCheckedFilePaths());
+                String[] checkedFilePaths = mFileListFragment.getCheckedFilePaths();
+                data.putExtra(EXTRA_CHOSEN_FILES, checkedFilePaths);
 
-                SharedPreferences.Editor appPreferencesEditor = PreferenceManager
-                        .getDefaultSharedPreferences(getApplicationContext()).edit();
+                SharedPreferences.Editor prefEditor = appPreferencesEditor.edit();
 
+                if(checkedFilePaths.length != 0) {
+                    prefEditor.putString(PREFS_LAST_SELECTED_DIR, mCurrentDir.toString());
+                }
 
                 if (mRadioBtnMoveFiles.isChecked()){
                     setResult(RESULT_OK_AND_MOVE, data);
-                    appPreferencesEditor.putInt("prefs_uploader_behaviour",
-                            FileUploader.LOCAL_BEHAVIOUR_MOVE);
+                    prefEditor.putInt(PREFS_UPLOAD_BEHAVIOUR, FileUploader.LOCAL_BEHAVIOUR_MOVE);
                 } else {
                     setResult(RESULT_OK, data);
-                    appPreferencesEditor.putInt("prefs_uploader_behaviour",
-                            FileUploader.LOCAL_BEHAVIOUR_COPY);
+                    prefEditor.putInt(PREFS_UPLOAD_BEHAVIOUR, FileUploader.LOCAL_BEHAVIOUR_COPY);
                 }
-                appPreferencesEditor.apply();
+                prefEditor.apply();
                 finish();
             } else {
                 // show a dialog to query the user if wants to move the selected files

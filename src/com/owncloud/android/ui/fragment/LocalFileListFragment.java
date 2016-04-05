@@ -159,7 +159,14 @@ public class LocalFileListFragment extends ExtendedListFragment {
     public File getCurrentDirectory(){
         return mDirectory;
     }
-    
+
+    /***
+     * Use this method to set the current directory that is currently being selected
+     * @param mDirectory The currently selected directory
+     */
+    public void setCurrentDirectory(File mDirectory) {
+        this.mDirectory = mDirectory;
+    }
     
     /**
      * Calls {@link LocalFileListFragment#listDirectory(File)} with a null parameter
